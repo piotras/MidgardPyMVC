@@ -36,6 +36,63 @@ def flash_warning(message):
 def flash_alert(message):
     flash(message, category='error')
 
+class LegacyMidgardObject(dict):
+  _m = None
+
+  @property
+  def _model(self):
+    return self.__class__._model
+
+  @_model.setter
+  def _model(self, model):
+    self._m = model
+
+  def __init__(self, model):
+    self.__class__._model = model
+   
+  def get_model(self):
+    return self._m
+
+  def __getattribute__(self, name):
+    try:
+      return dict.__dict__[name]
+    except KeyError as e:
+      print "GET ATTR " + name 
+      try:
+        return self.__class__._model.get_property(name)
+      except AttributeError:
+        if name in self:
+          return self[name]
+        raise
+      
+  def __setitem__(self, key, value):
+    self._validate_key(key)
+    self._model.set_property(key, value)
+    __setattr_ = __setitem__
+      
+  def set_property(self, *args, **kwargs):
+    return self._model.set_property(*args, **kwargs)
+  
+  #def get_property(self, *args, **kwargs):
+  #  return self._model.get_property(*args, **kwargs)
+                                                                                                                                                            
+  def save(self, *args, **kwargs):
+    return self._model.save(*args, **kwargs)
+  
+  def _validate_key(self, key):
+    pass
+    try:
+      class IsIdentifier(object): __slots__ = key
+    except TypeError:
+      raise TypeError("invalid identifier: '%s'" % key)
+    
+    try:
+      dict.__getattribute__(self, key)
+    except AttributeError:
+      pass
+    else:
+      raise TypeError("builtin dict attribute: '%s'" % key)
+
 class midgard_legacy_query_builder():
   group = None
   qs = None
@@ -97,7 +154,12 @@ class midgard_legacy_query_builder():
       self.qs.set_constraint(self.group)
     self.qs.execute()
     self.executed = True
-    return self.qs.list_objects()
+    objects = self.qs.list_objects()
+    return objects
+    #result = []
+    #for o in objects:
+    #  result.append(LegacyMidgardObject(o))
+    #return result
 
   def count(self):
     if self.executed is False:
